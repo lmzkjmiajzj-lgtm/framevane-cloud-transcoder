@@ -1,0 +1,26 @@
+name: Faststart & Compress All R2 Videos
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  transcode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Run shard ${{ matrix.shard }} / 20
+        env:
+          R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
+          SHARD_IDX: ${{ matrix.shard }}
+          SHARD_TOTAL: "20"
+          MAX_WORKERS: "4"
+        run: python3 -u transcode_shard.py

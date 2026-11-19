@@ -5,12 +5,7 @@ on:
     inputs:
       slugs:
         description: 'Comma-separated brand slugs to horizontally un-mirror'
-        required: false
-        default: ''
-  push:
-    branches: [ main ]
-    paths:
-      - 'force_flip_slugs.txt'
+        required: true
 
 jobs:
   force_unmirror:

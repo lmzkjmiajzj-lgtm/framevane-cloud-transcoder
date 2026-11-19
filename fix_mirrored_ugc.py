@@ -34,7 +34,7 @@ SHARD_IDX = int(os.environ.get("SHARD_IDX", "0"))
 SHARD_TOTAL = int(os.environ.get("SHARD_TOTAL", "20"))
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "4"))
 
-ALREADY_UNMIRRORED = {"truff-eec6d8"}
+ALREADY_UNMIRRORED = {"truff-eec6d8", "osea-9eeb6d"}
 WEAK_TOKENS = {
     "USA", "NYC", "LAB", "LABS", "INC", "LLC", "LTD", "THE", "AND", "FOR",
     "WITH", "FROM", "THIS", "THAT", "YOUR", "PURE", "SKIN", "CARE", "BODY",
@@ -242,12 +242,18 @@ def process_ugc(mp4_key: str) -> str:
         orig_sift = 0
         flip_sift = 0
         if orig_total_score == 0:
-            studio_url = f"{MEDIA_BASE}/concepts/{slug}/film.mp4"
-            studio_frames = extract_frames(studio_url, ["1.2", "5.0"], work, "s")
-            if studio_frames:
-                for co, cf in zip(crops_orig[:3], crops_flip[:3]):
-                    orig_sift = max(orig_sift, sift_oriented_inliers(studio_frames, co))
-                    flip_sift = max(flip_sift, sift_oriented_inliers(studio_frames, cf))
+            studio_mp4 = work / "studio.mp4"
+            sdl = subprocess.run(
+                ["curl", "-fsSL", "--max-time", "25", "-o", str(studio_mp4), f"{MEDIA_BASE}/concepts/{slug}/film.mp4"],
+                capture_output=True,
+                text=True,
+            )
+            if sdl.returncode == 0 and studio_mp4.exists() and studio_mp4.stat().st_size > 20_000:
+                studio_frames = extract_frames(str(studio_mp4), ["1.2", "5.0"], work, "s")
+                if studio_frames:
+                    for co, cf in zip(crops_orig[:3], crops_flip[:3]):
+                        orig_sift = max(orig_sift, sift_oriented_inliers(studio_frames, co))
+                        flip_sift = max(flip_sift, sift_oriented_inliers(studio_frames, cf))
 
         do_flip = False
         reason = ""

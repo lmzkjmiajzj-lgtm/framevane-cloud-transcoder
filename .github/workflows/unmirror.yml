@@ -1,0 +1,29 @@
+name: Detect & Un-Mirror Flipped UGC Videos
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'fix_mirrored_ugc.py'
+      - 'ugc_label_manifest.json'
+
+jobs:
+  unmirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg, tesseract-ocr, and opencv
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg tesseract-ocr python3-opencv python3-numpy
+      - name: Run unmirror shard ${{ matrix.shard }} / 20
+        env:
+          R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
+          SHARD_IDX: ${{ matrix.shard }}
+          SHARD_TOTAL: "20"
+          MAX_WORKERS: "4"
+        run: python3 -u fix_mirrored_ugc.py

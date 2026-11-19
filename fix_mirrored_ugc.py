@@ -69,24 +69,20 @@ def clean_tokens(entry: dict) -> tuple[set[str], set[str]]:
     return brand_toks, all_toks
 
 
-def tesseract_words(gray_img: np.ndarray) -> set[str]:
+os.environ["OMP_THREAD_LIMIT"] = "1"
+cv2.setNumThreads(1)
+
+def tesseract_words(gray_img: np.ndarray, tmp_jpg: Path) -> set[str]:
     clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
     enh = clahe.apply(gray_img)
-    up = cv2.resize(enh, None, fx=1.8, fy=1.8, interpolation=cv2.INTER_CUBIC)
-    ok, buf = cv2.imencode(".png", up)
-    if not ok:
-        return set()
-    png_bytes = buf.tobytes()
+    cv2.imwrite(str(tmp_jpg), enh, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
     words = set()
-    for psm in ("11", "6"):
-        p = subprocess.run(
-            ["tesseract", "stdin", "stdout", "-l", "eng", "--psm", psm, "tsv"],
-            input=png_bytes,
-            capture_output=True,
-            timeout=15,
-        )
-        if p.returncode != 0:
-            continue
+    p = subprocess.run(
+        ["tesseract", str(tmp_jpg), "stdout", "-l", "eng", "--oem", "1", "--psm", "6", "tsv"],
+        capture_output=True,
+        timeout=15,
+    )
+    if p.returncode == 0:
         for line in p.stdout.decode("utf-8", errors="ignore").splitlines()[1:]:
             parts = line.split("\t")
             if len(parts) < 12:
@@ -207,7 +203,7 @@ def process_ugc(mp4_key: str) -> str:
         if dl.returncode != 0 or not ugc_path.exists() or ugc_path.stat().st_size < 20_000:
             return f"DL_ERR {slug}"
 
-        ugc_frames = extract_frames(str(ugc_path), ["1.0", "2.8", "4.6", "6.4", "8.2"], work, "u")
+        ugc_frames = extract_frames(str(ugc_path), ["1.2", "4.5", "7.8"], work, "u")
         if not ugc_frames:
             return f"NO_FRAMES {slug}"
 
@@ -231,8 +227,8 @@ def process_ugc(mp4_key: str) -> str:
             crops_flip.append(crop_f)
 
             if all_toks:
-                w_o = tesseract_words(crop)
-                w_f = tesseract_words(crop_f)
+                w_o = tesseract_words(crop, work / "ocr_o.jpg")
+                w_f = tesseract_words(crop_f, work / "ocr_f.jpg")
                 so, mo, bo = score_ocr_words(w_o, brand_toks, all_toks)
                 sf, mf, bf = score_ocr_words(w_f, brand_toks, all_toks)
                 orig_total_score += so

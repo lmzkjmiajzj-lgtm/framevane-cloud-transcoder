@@ -25,5 +25,6 @@ jobs:
           R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
           SHARD_IDX: ${{ matrix.shard }}
           SHARD_TOTAL: "20"
-          MAX_WORKERS: "4"
+          MAX_WORKERS: "2"
+          OMP_THREAD_LIMIT: "1"
         run: python3 -u fix_mirrored_ugc.py

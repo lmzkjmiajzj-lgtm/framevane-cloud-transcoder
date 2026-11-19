@@ -1,0 +1,27 @@
+name: Force Un-Mirror Specific Slugs
+
+on:
+  workflow_dispatch:
+    inputs:
+      slugs:
+        description: 'Comma-separated brand slugs to horizontally un-mirror'
+        required: false
+        default: ''
+  push:
+    branches: [ main ]
+    paths:
+      - 'force_flip_slugs.txt'
+
+jobs:
+  force_unmirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Run targeted un-mirror
+        env:
+          R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
+          SLUGS: ${{ github.event.inputs.slugs }}
+        run: python3 -u force_unmirror.py

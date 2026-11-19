@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - 'keys.txt'
+      - 'transcode_shard.py'
 
 jobs:
   transcode:

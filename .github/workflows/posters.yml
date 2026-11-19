@@ -1,0 +1,24 @@
+name: Generate All 1,472 Direct R2 Video Posters
+
+on:
+  workflow_dispatch:
+
+jobs:
+  posters:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Extract & upload posters shard ${{ matrix.shard }} / 20
+        env:
+          R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
+          SHARD_IDX: ${{ matrix.shard }}
+          SHARD_TOTAL: "20"
+          MAX_WORKERS: "8"
+        run: python3 -u extract_posters.py

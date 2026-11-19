@@ -26,31 +26,32 @@ def fetch_pair(slug: str) -> tuple[str, Path, Path]:
     p_s = tmp_posters / f"{slug}_s.jpg"
     p_u = tmp_posters / f"{slug}_u.jpg"
     subprocess.run(
-        ["curl", "-fsSL", "--max-time", "20", "-o", str(p_s), f"{MEDIA_BASE}/posters/concepts/{slug}/film.jpg?v=qa"],
+        ["curl", "-fsSL", "--retry", "4", "--retry-delay", "1", "--max-time", "25", "-o", str(p_s), f"{MEDIA_BASE}/posters/concepts/{slug}/film.jpg?v=qa2"],
         capture_output=True,
     )
     subprocess.run(
-        ["curl", "-fsSL", "--max-time", "20", "-o", str(p_u), f"{MEDIA_BASE}/posters/concepts/{slug}/ugc-film.jpg?v=qa"],
+        ["curl", "-fsSL", "--retry", "4", "--retry-delay", "1", "--max-time", "25", "-o", str(p_u), f"{MEDIA_BASE}/posters/concepts/{slug}/ugc-film.jpg?v=qa2"],
         capture_output=True,
     )
     return slug, p_s, p_u
 
 
-print("[QA SHEETS] Downloading all 1,472 posters at 1 Gbps...", flush=True)
-with concurrent.futures.ThreadPoolExecutor(max_workers=32) as ex:
-    pairs = list(ex.map(fetch_pair, ugc_slugs))
-print("[QA SHEETS] Downloaded all pairs. Rendering 20-brand sheets...", flush=True)
+START_SHEET = int(os.environ.get("START_SHEET", "18"))
+print(f"[QA SHEETS] Downloading posters (max_workers=4) starting from sheet {START_SHEET}...", flush=True)
+target_slugs = ugc_slugs[START_SHEET * 20:]
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+    sub_pairs = list(ex.map(fetch_pair, target_slugs))
+print(f"[QA SHEETS] Downloaded {len(sub_pairs)} pairs. Rendering 20-brand sheets...", flush=True)
 
-# 20 brands per sheet -> 5 brand-columns (each brand = 2 tiles: Studio + UGC = 10 tiles wide? Wait: 4 brands wide x 5 rows = 20 brands = 8 tiles wide x 5 rows!)
-# Each tile: 200x355 -> 8 * 200 = 1600px wide, 5 * 355 = 1775px tall -> super crisp labels & faces, ~220KB at q=74!
-TILE_W, TILE_H = 200, 355
+TILE_W, TILE_H = 160, 284
 BRANDS_PER_ROW = 4
 ROWS = 5
-BATCH = BRANDS_PER_ROW * ROWS  # 20 brands = 40 videos per sheet!
+BATCH = BRANDS_PER_ROW * ROWS
 
 sheet_manifest = []
-for b_idx in range(0, len(pairs), BATCH):
-    chunk = pairs[b_idx:b_idx + BATCH]
+for rel_idx in range(0, len(sub_pairs), BATCH):
+    b_idx = START_SHEET * BATCH + rel_idx
+    chunk = sub_pairs[rel_idx:rel_idx + BATCH]
     sheet_num = b_idx // BATCH
     canvas = Image.new("RGB", (TILE_W * BRANDS_PER_ROW * 2, TILE_H * ROWS), (16, 18, 17))
     draw = ImageDraw.Draw(canvas)
@@ -85,7 +86,7 @@ for b_idx in range(0, len(pairs), BATCH):
 
     sheet_name = f"sheet_{sheet_num:02d}.jpg"
     sheet_path = tmp_sheets / sheet_name
-    canvas.save(sheet_path, quality=74, optimize=True)
+    canvas.save(sheet_path, quality=68, optimize=True)
 
     r2_key = f"qa/sheets/{sheet_name}"
     up_url = f"{UPLOAD_BASE}?key={urllib.parse.quote(r2_key, safe='/')}"
@@ -104,16 +105,17 @@ for b_idx in range(0, len(pairs), BATCH):
     print(f"[SHEET {sheet_num:02d}/36] {sheet_name} ({sheet_path.stat().st_size // 1024}KB) -> upload={ok}", flush=True)
     sheet_manifest.append({"sheet": sheet_name, "r2_key": r2_key, "brands": chunk_meta})
 
-man_path = tmp_sheets / "manifest.json"
-man_path.write_text(json.dumps(sheet_manifest, indent=2))
-subprocess.run(
-    [
-        "curl", "-fsSL", "--max-time", "30", "-X", "POST",
-        "-H", f"X-Bridge-Secret: {SECRET}",
-        "-H", "Content-Type: application/json",
-        "--data-binary", f"@{man_path}",
-        f"{UPLOAD_BASE}?key=qa/sheets/manifest.json",
-    ],
-    capture_output=True,
-)
+if START_SHEET == 0:
+    man_path = tmp_sheets / "manifest.json"
+    man_path.write_text(json.dumps(sheet_manifest, indent=2))
+    subprocess.run(
+        [
+            "curl", "-fsSL", "--max-time", "30", "-X", "POST",
+            "-H", f"X-Bridge-Secret: {SECRET}",
+            "-H", "Content-Type: application/json",
+            "--data-binary", f"@{man_path}",
+            f"{UPLOAD_BASE}?key=qa/sheets/manifest.json",
+        ],
+        capture_output=True,
+    )
 print(f"[QA SHEETS] ALL {len(sheet_manifest)} SHEETS DONE!", flush=True)

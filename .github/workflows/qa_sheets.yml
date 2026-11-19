@@ -1,0 +1,17 @@
+name: Build All 1,472-Video Visual QA Contact Sheets
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_sheets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install python3-pil
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
+      - name: Build and upload 37 QA sheets to R2
+        env:
+          R2_BRIDGE_SECRET: ${{ secrets.R2_BRIDGE_SECRET }}
+        run: python3 -u build_qa_sheets.py
